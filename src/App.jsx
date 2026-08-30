@@ -182,31 +182,36 @@ const SHAPE = {
 const FLOW = [
   { id: "place1", kind: "list", key: "place", slot: 0, opts: () => PLACE,
     q: () => "Where do you feel it in your body?",
-    calm: "Close your eyes if you can. Don't try to name it yet — just find where it lives." },
+    calm: "Close your eyes if you can, and scan down slowly from your head. Don't try to name the feeling yet — just find where it lives. The place you point to picks the first instrument." },
   { id: "place2", kind: "list", key: "place", slot: 1, opts: () => PLACE, gentle: true, none: "No, just there",
-    q: (a) => `${cap(PLACE[a.place[0]].short)}. Anywhere else?`, calm: "Sometimes it has more than one home." },
+    q: (a) => `${cap(PLACE[a.place[0]].short)}. Anywhere else?`,
+    calm: "Sometimes it lives in two places at once. If it's only the one, that's just as true — carry on." },
   { id: "quality", kind: "sliders", q: () => "What is it like in there?",
-    calm: "Move each one until the sound matches. No right answers, no hurry." },
+    calm: "Move each slider until the sound matches what's in your body — you'll hear it change as you go. No right answers, and no hurry. The loop will wait." },
   { id: "valence", kind: "cards", key: "valence", single: true, opts: () => VALENCE,
-    q: () => "Is it a bad feeling?", calm: "Not all of them are. Some are both." },
+    q: () => "Is it a feeling you want, or one you don't?",
+    calm: "Not everything that hurts is unwanted, and not everything pleasant is welcome. Whatever you choose sets the key the loop plays in." },
   { id: "agency", kind: "cards", key: "agency", single: true, opts: () => AGENCY,
-    q: () => "Whose is it?", calm: "The same feeling means something different depending on who caused it." },
+    q: () => "Who put it there?",
+    calm: "The same feeling means something different depending on who caused it. Your answer decides where the rhythm stands — beside you, inside you, or nowhere at all." },
   { id: "pull1", kind: "cards", key: "pull", slot: 0, opts: impulseSet,
     q: () => "If you let it move you, what would it make you do?",
-    calm: "Even if you'd never actually do it. Especially then." },
+    calm: "Even if you'd never actually do it. Especially then. This is the instrument that gets struck, not held." },
   { id: "pull2", kind: "cards", key: "pull", slot: 1, opts: impulseSet, gentle: true, none: "No, just that",
     q: (a) => (a.pull[0] ? `It wants you to ${IMPULSE[a.pull[0]].phrase}. Anything else, at the same time?` : "Anything else, at the same time?"),
-    calm: "Feelings often want two things at once." },
+    calm: "Feelings often want two things at once. A second pull plays in triplets, leaning against the first. If there's just the one, carry on." },
   { id: "time", kind: "cards", key: "time", single: true, opts: () => TIME,
-    q: () => "Is it about something behind you, or ahead?", calm: "" },
+    q: () => "Is it about something behind you, or ahead?",
+    calm: "Your answer decides whether the loop trails an echo, climbs toward something, or stays right here in the room." },
   { id: "control", kind: "cards", key: "control", single: true, opts: () => CONTROL,
     q: () => "Is there anything you could do about it?",
-    calm: "This is the one that decides whether the loop ever lands." },
+    calm: "Answer honestly, not bravely. This is the one that decides whether the loop ever gets to land." },
   { id: "shape", kind: "cards", key: "shape", single: true, opts: () => SHAPE,
-    q: () => "How has it been moving?", calm: "Think back over however long it's been there." },
+    q: () => "And over time — how has it been moving?",
+    calm: "Think back over however long it's been with you, a day or a year. This shapes how each pass of the loop swells and falls." },
 ];
 
-const STAGE = { place1: "where it is", place2: "where else", quality: "what it's like", valence: "good or bad", agency: "whose it is", pull1: "what it wants", pull2: "what else it wants", time: "behind or ahead", control: "whether you can act", shape: "how it moved" };
+const STAGE = { place1: "where it is", place2: "where else", quality: "what it's like", valence: "want it or not", agency: "who caused it", pull1: "what it wants", pull2: "what else it wants", time: "behind or ahead", control: "whether you can act", shape: "how it moved" };
 
 /* ================================================================== */
 function summary(ans) {
@@ -866,7 +871,8 @@ export default function FeelingInstrument() {
   }, [ans, teardown, applyQuality]);
 
   const start = async (to) => {
-    const target = typeof to === "string" ? to : "flow";
+    /* one guided breath before the first question — skipped for reduced motion */
+    const target = typeof to === "string" ? to : reduced ? "flow" : "settle";
     setBooting(true);
     try {
       await Tone.start();
@@ -1164,8 +1170,8 @@ export default function FeelingInstrument() {
 
   const layers = [
     ...ans.place.map((k) => ({ id: `place:${k}`, why: PLACE[k].short, name: PLACE[k].instrument, metered: true })),
-    ...(ans.valence ? [{ id: "v", why: "good or bad", name: VALENCE[ans.valence].sound }] : []),
-    ...(ans.agency ? [{ id: "a", why: "whose it is", name: AGENCY[ans.agency].sound }] : []),
+    ...(ans.valence ? [{ id: "v", why: "want it or not", name: VALENCE[ans.valence].sound }] : []),
+    ...(ans.agency ? [{ id: "a", why: "who caused it", name: AGENCY[ans.agency].sound }] : []),
     ...ans.pull.filter((k) => IMPULSE[k].kit).map((k, n) => ({
       id: `pull:${k}`, why: IMPULSE[k].phrase.split(" ").slice(0, 3).join(" "),
       name: IMPULSE[k].instrument + (n === 1 && ans.pull.length === 2 ? ", in triplets" : ""), metered: true })),
@@ -1182,6 +1188,7 @@ export default function FeelingInstrument() {
     <div style={{ minHeight: "100vh", background: INK, color: BONE, fontFamily: SANS, display: "flex", justifyContent: "center", padding: "0 22px 56px" }}>
       <style>{`
         @keyframes layerIn { from{opacity:0;transform:translateX(-6px);} to{opacity:1;transform:none;} }
+        @keyframes breathe { 0%,100%{transform:scale(.72);opacity:.45} 45%,58%{transform:scale(1);opacity:1} }
         .layer{ animation:layerIn .45s ease both; }
         .opt{ display:block;width:100%;text-align:left;background:transparent;border:none;
               border-bottom:1px solid ${LINE};padding:16px 2px;color:${BONE};
@@ -1265,22 +1272,56 @@ export default function FeelingInstrument() {
                 Something's there and you can't say what.<br />
                 <span style={{ color: ASH }}>Let's hear it instead.</span>
               </h1>
-              <p style={{ font: `400 16px/1.65 ${SANS}`, color: ASH, maxWidth: 480, margin: "0 0 32px" }}>
-                Slow questions about the feeling you're carrying. Every answer puts another
-                instrument into a ten-second loop, and the questions change depending on what you
-                say. Nothing is diagnosed and nothing is named for you. At the end you read your
-                own answers back, name it yourself, and leave with a ten-second video of it.
+              <p style={{ font: `400 16px/1.65 ${SANS}`, color: ASH, maxWidth: 480, margin: "0 0 26px" }}>
+                Ten slow questions about the feeling you're carrying, and no wrong answers —
+                nothing is diagnosed, and nothing is named for you.
               </p>
+              <div style={{ maxWidth: 480, margin: "0 0 30px", borderTop: `1px solid ${LINE}` }}>
+                {[["01", "Answer slowly", "each answer adds an instrument, live"],
+                  ["02", "Hear it back", "ten seconds of what you just described"],
+                  ["03", "Name it yourself", "your words, your name, one MP4 to keep"]].map(([n, t, d]) => (
+                  <div key={n} style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "11px 2px", borderBottom: `1px solid ${LINE}`, flexWrap: "wrap" }}>
+                    <span style={{ font: `500 10px ${MONO}`, color: ASH }}>{n}</span>
+                    <span style={{ font: `400 15px ${SERIF}`, color: BONE, minWidth: 128 }}>{t}</span>
+                    <span style={{ font: `400 12.5px ${SANS}`, color: ASH }}>{d}</span>
+                  </div>
+                ))}
+              </div>
               <button onClick={() => start()} disabled={booting}
                 style={{ background: BONE, color: INK, border: "none", borderRadius: 3, font: `600 15px ${SANS}`, padding: "16px 34px", cursor: "pointer" }}>
                 {booting ? "Tuning…" : "Begin"}
               </button>
-              <p style={{ font: `400 12px/1.5 ${SANS}`, color: ASH, marginTop: 16 }}>Sound on, if you can. Headphones are better.</p>
+              <p style={{ font: `400 12px/1.5 ${SANS}`, color: ASH, marginTop: 16 }}>
+                About two minutes. Nothing is saved or sent anywhere. Sound on, if you can — headphones are better.
+              </p>
+            </div>
+          )}
+
+          {phase === "settle" && (
+            <div>
+              <div aria-hidden="true" style={{ width: 84, height: 84, borderRadius: "50%",
+                border: `1px solid ${LINE}`, background: `radial-gradient(circle, ${accent}44, transparent 72%)`,
+                margin: "8px 0 30px", animation: reduced ? "none" : "breathe 8s ease-in-out infinite" }} />
+              <h2 style={{ font: `400 clamp(25px, 5.6vw, 34px)/1.28 ${SERIF}`, letterSpacing: "-0.015em", margin: "0 0 12px" }}>
+                First, one slow breath.
+              </h2>
+              <p style={{ font: `400 15px/1.6 ${SANS}`, color: ASH, maxWidth: 440, margin: "0 0 30px" }}>
+                In while the circle brightens, out while it dims. There's no clock on any of
+                this — the questions start when you do.
+              </p>
+              <button onClick={() => setPhase("flow")}
+                style={{ background: BONE, color: INK, border: "none", borderRadius: 3, font: `600 15px ${SANS}`, padding: "15px 32px", cursor: "pointer" }}>
+                I'm ready
+              </button>
             </div>
           )}
 
           {screen && (
             <div style={{ opacity: leaving ? 0 : 1, transform: leaving ? "translateY(-10px)" : "none", transition: reduced ? "none" : "opacity .42s ease, transform .42s ease" }}>
+              <div style={{ font: `500 9.5px ${MONO}`, letterSpacing: "0.18em", color: ASH, marginBottom: 14,
+                opacity: vis.q ? 1 : 0, transition: reduced ? "none" : "opacity .5s ease" }}>
+                {i + 1} OF {FLOW.length} · {STAGE[screen.id].toUpperCase()}
+              </div>
               <h2 ref={headRef} tabIndex={-1}
                 style={{ font: `400 clamp(25px, 5.6vw, 34px)/1.28 ${SERIF}`, letterSpacing: "-0.015em", margin: "0 0 12px", maxWidth: 540,
                   opacity: vis.q ? 1 : 0, transform: vis.q ? "none" : "translateY(6px)", transition: reduced ? "none" : "opacity .5s ease, transform .5s ease" }}>
@@ -1317,7 +1358,7 @@ export default function FeelingInstrument() {
                     <button onClick={() => { if (!leaving) leave(() => go(i + 1)); }}
                       style={{ marginTop: 10, background: accent, color: INK, border: "none", borderRadius: 3,
                         font: `600 15px ${SANS}`, padding: "15px 34px", cursor: "pointer" }}>
-                      That's it
+                      That's how it feels
                     </button>
                   </div>
                 )}
@@ -1370,6 +1411,9 @@ export default function FeelingInstrument() {
           {/* ---- read it back, then name it yourself ---- */}
           {phase === "name" && (
             <div>
+              <div style={{ font: `500 9.5px ${MONO}`, letterSpacing: "0.18em", color: ASH, marginBottom: 14 }}>
+                LAST STEP · READ IT BACK, THEN NAME IT
+              </div>
               <h2 ref={headRef} tabIndex={-1} style={{ font: `400 clamp(24px, 5.4vw, 32px)/1.25 ${SERIF}`, margin: "0 0 10px" }}>
                 Read that back, slowly.
               </h2>

@@ -39,6 +39,15 @@ variables are required.
 | `vite.config.js` | Vite + the React plugin, nothing else |
 | `vercel.json` | Build config and headers |
 
+### The flow
+
+A guided opening: the cover says exactly what will happen in three steps, and
+`Begin` leads into one slow breath (skipped under reduced motion) before the
+first question. Every question carries a step counter and a stage label, and
+its supporting line says what to do and what the answer will change in the
+sound — so the loop never mutates mysteriously. The last screen reads your own
+words back before asking you to name the thing yourself.
+
 ### The sound
 
 Fixed 96bpm, four bars, which is exactly ten seconds. Body location picks the
