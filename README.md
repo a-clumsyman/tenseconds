@@ -36,6 +36,7 @@ variables are required.
 | `src/App.jsx` | Everything: the answer model, the synthesis, the artwork, the UI |
 | `src/main.jsx` | Mount point. Deliberately no `StrictMode` — see the comment there |
 | `index.html` | Shell, base styles, metadata |
+| `vite.config.js` | Vite + the React plugin, nothing else |
 | `vercel.json` | Build config and headers |
 
 ### The sound
@@ -51,6 +52,22 @@ or never resolves.
 
 Rebuilding on each answer restarts the loop from the top, so you hear the new
 instrument arrive.
+
+The rhythms are humanized — every hit lands a few milliseconds early or late
+and never twice at the same weight, the pitched instruments respond to the
+step velocities, and the motion slider adds a touch of swing on top of the
+tremolo it already drives.
+
+### The send-off
+
+The loop itself only resolves if you said there was something you could do.
+But the last two seconds of the recording always land: a short rolled phrase —
+root, fifth, octave, and a colour tone picked by valence (a major third if it
+was good, an add9 if it wasn't, the minor third turning major if it was both) —
+played on a soft bell into the same reverb, with the root underneath. Naming
+the thing is itself an act, so the send-off plays once when the feeling gets
+its name, and again at the end of the video, so it leaves settled. Its roll
+speed follows the motion slider and its weight follows intensity.
 
 ### The video
 

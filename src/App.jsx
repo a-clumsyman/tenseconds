@@ -355,23 +355,26 @@ function makeRhythm(key, root, dest, second, velRef) {
     fire = (t, s) => voice.triggerAttackRelease("32n", t, Math.min(1, u.vel * s * velRef()));
   } else if (u.kit === "muted") {
     voice = new Tone.PluckSynth({ volume: -6, attackNoise: 0.5, dampening: 1200, resonance: 0.7 }).connect(gain);
-    fire = (t, s, n) => voice.triggerAttack(n, t, Math.min(1, u.vel * velRef()));
+    fire = (t, s, n) => voice.triggerAttack(n, t, Math.min(1, u.vel * s * velRef()));
   } else if (u.kit === "harp") {
     voice = new Tone.PluckSynth({ volume: -3, attackNoise: 0.9, dampening: 4000, resonance: 0.96 }).connect(gain);
-    fire = (t, s, n) => voice.triggerAttack(n, t, Math.min(1, u.vel * velRef()));
+    fire = (t, s, n) => voice.triggerAttack(n, t, Math.min(1, u.vel * s * velRef()));
   } else if (u.kit === "marimba") {
     voice = new Tone.FMSynth({ volume: -10, harmonicity: 4, modulationIndex: 2.4, envelope: { attack: 0.002, decay: 0.5, sustain: 0, release: 0.4 }, modulationEnvelope: { attack: 0.002, decay: 0.22, sustain: 0 } }).connect(gain);
-    fire = (t, s, n) => voice.triggerAttackRelease(n, "8n", t, Math.min(1, u.vel * velRef()));
+    fire = (t, s, n) => voice.triggerAttackRelease(n, "8n", t, Math.min(1, u.vel * s * velRef()));
   } else {
     voice = new Tone.FMSynth({ volume: -10, harmonicity: 3.01, modulationIndex: 6, envelope: { attack: 0.002, decay: 1.6, sustain: 0, release: 1.4 }, modulationEnvelope: { attack: 0.002, decay: 0.3, sustain: 0 } }).connect(gain);
-    fire = (t, s, n) => voice.triggerAttackRelease(n, "2n", t, Math.min(1, u.vel * velRef()));
+    fire = (t, s, n) => voice.triggerAttackRelease(n, "2n", t, Math.min(1, u.vel * s * velRef()));
   }
   nodes.push(voice);
 
   const seq = new Tone.Sequence((time, v) => {
     if (v === null || v === undefined) return;
+    /* played by a hand, not a grid: a few ms early or late, never twice the same weight */
+    const when = time + (Math.random() - 0.5) * 0.012;
+    const str = (u.pitched ? 1 : v) * (1 + (Math.random() - 0.5) * 0.16);
     const note = u.pitched ? Tone.Frequency(root).transpose(v + 12 + (second ? 7 : 0)).toNote() : null;
-    fire(time, u.pitched ? 1 : v, note);
+    fire(when, str, note);
   }, u.steps, sub);
   seq.loop = true; seq.start(0);
   nodes.push(seq);
@@ -386,7 +389,7 @@ function buildPatch({ dest, ans, t0, velRef }) {
   const shapeGain = new Tone.Gain(0.7 * headroom).connect(dest);
   const sweep = new Tone.Filter({ frequency: 18000, type: "lowpass", Q: 1.2 }).connect(shapeGain);
   const tremolo = new Tone.Tremolo({ frequency: 1.5, depth: 0 }).connect(sweep).start();
-  const distortion = new Tone.Distortion({ distortion: 0.6, wet: 0 }).connect(tremolo);
+  const distortion = new Tone.Distortion({ distortion: 0.4, wet: 0 }).connect(tremolo);
   const eq = new Tone.EQ3({ low: 0, mid: 0, high: 0 }).connect(distortion);
   const vibrato = new Tone.Vibrato({ frequency: 5, depth: 0 }).connect(eq);
   const voiceBus = new Tone.Gain(1).connect(vibrato);
@@ -463,6 +466,59 @@ function passGestures(b, ans, when, pass) {
       b.sub.setNote(b.subNote, when + LOOP * 0.97);
     } catch (e) {}
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  The send-off: one short, warm phrase built from the same answers.  */
+/*  The loop only resolves if you said you could act — but the send-   */
+/*  off always lands, because naming the thing is itself an act. It    */
+/*  plays once when the feeling gets its name, and again in the last   */
+/*  two seconds of the recording, so the video ends settled.           */
+function sendoffNotes(ans) {
+  const root = ans.place.length ? PLACE[ans.place[0]].root : "C3";
+  const f = Tone.Frequency(root);
+  const iv = [0, 7, 12];
+  if (ans.valence === "good") iv.push(16, 19);        /* major, openly */
+  else if (ans.valence === "both") iv.push(15, 16);   /* the minor third, then the turn */
+  else iv.push(14, 19);                                /* add9 — warm without pretending */
+  return iv.map((n) => f.transpose(n + 12).toNote());  /* up an octave, bell register */
+}
+
+function playSendoff(dest, ans, when) {
+  const q = ans.quality || { motion: 0.5, intensity: 0.5 };
+  const notes = sendoffNotes(ans);
+  const nodes = [];
+  const gain = new Tone.Gain(0.9).connect(dest);
+  const bell = new Tone.PolySynth(Tone.FMSynth, {
+    volume: -16, harmonicity: 2.01, modulationIndex: 1.6,
+    envelope: { attack: 0.005, decay: 2.4, sustain: 0, release: 2.6 },
+    modulationEnvelope: { attack: 0.005, decay: 0.5, sustain: 0 },
+  }).connect(gain);
+  const under = new Tone.Synth({
+    volume: -18, oscillator: { type: "sine" },
+    envelope: { attack: 0.4, decay: 2.6, sustain: 0, release: 2.2 },
+  }).connect(gain);
+  nodes.push(gain, bell, under);
+  const t0 = when !== undefined ? when : Tone.now() + 0.05;
+  const gap = 0.19 - 0.09 * q.motion;                 /* a moving feeling rolls quicker */
+  const vel = 0.32 + 0.3 * q.intensity;
+  notes.forEach((n, k) => {
+    const last = k === notes.length - 1;
+    /* a small breath before the landing note */
+    const at = t0 + k * gap + (last ? gap * 0.8 : 0);
+    bell.triggerAttackRelease(n, "2n", at, Math.min(0.7, vel * (last ? 1.1 : 1 - k * 0.06)));
+  });
+  /* and the root underneath, once everything is ringing */
+  under.triggerAttackRelease(Tone.Frequency(notes[0]).transpose(-12).toNote(), "1n",
+    t0 + gap * (notes.length - 1) + 0.3, 0.5);
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    nodes.forEach((n) => { try { n.dispose(); } catch (e) {} });
+  };
+  const timer = setTimeout(dispose, Math.max(0, (t0 - Tone.now()) + 8) * 1000);
+  return () => { clearTimeout(timer); dispose(); };
 }
 
 /* ================================================================== */
@@ -762,11 +818,14 @@ export default function FeelingInstrument() {
     p.eq.high.rampTo(4 - 9 * w, 0.35);
     p.subGain.gain.rampTo(0.06 + 0.5 * w, 0.35);
     p.shimmer.gain.rampTo(0.05 + 0.42 * (1 - w), 0.35);
-    p.distortion.wet.rampTo(Math.max(0, (h - 0.45) * 0.85), 0.35);
+    p.distortion.wet.rampTo(Math.max(0, (h - 0.5) * 0.6), 0.35);
     p.vibrato.frequency.rampTo(3 + 4.5 * h, 0.35);
     p.vibrato.depth.rampTo(0.015 + 0.13 * mo, 0.35);
     p.tremolo.depth.rampTo(0.65 * mo, 0.35);
     p.tremolo.frequency.rampTo(0.3 + 5.2 * mo, 0.35);
+    /* a moving feeling doesn't sit square on the beat */
+    const tr = T();
+    tr.swing = 0.18 * mo; tr.swingSubdivision = "8n";
     if (out.current && ans.place.length)
       out.current.reverb.wet.rampTo(Math.max(0.12, PLACE[ans.place[0]].wet * (1.25 - 0.85 * tn) * (1.1 - 0.3 * iv)), 0.4);
   }, [ans.place]);
@@ -834,6 +893,14 @@ export default function FeelingInstrument() {
   }, [ready, silent, structural]);
 
   useEffect(() => { if (out.current) out.current.master.gain.rampTo(muted ? 0 : 0.9, 0.5); }, [muted]);
+
+  /* the send-off plays once, live, the moment the feeling has its name */
+  useEffect(() => {
+    if (phase !== "result" || !ready || silent || !out.current || !ans.place.length) return;
+    return playSendoff(out.current.reverb, ans, Tone.now() + 0.15);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [phase]);
+
   useEffect(() => () => {
     try { T().stop(); } catch (e) {}
     teardown();
@@ -1020,6 +1087,9 @@ export default function FeelingInstrument() {
       g0.linearRampToValueAtTime(0.9, tNow + 0.25);
       g0.setValueAtTime(0.9, tNow + LOOP - 0.7);
       g0.linearRampToValueAtTime(0.0001, tNow + LOOP);
+
+      /* the recording ends on the send-off, ringing out under the fade */
+      try { playSendoff(out.current.reverb, ans, tNow + LOOP - 2.4); } catch (e) {}
 
       cleanup = () => {
         cancelAnimationFrame(raf);
@@ -1428,7 +1498,7 @@ export default function FeelingInstrument() {
                 <button onClick={reset} style={softBtn}>Start again</button>
               </div>
               <div role="status" aria-live="polite" style={{ font: `400 12px ${SANS}`, color: job.state === "error" ? RED : ASH, minHeight: 18, marginBottom: 26 }}>
-                {job.msg || "One MP4, ten seconds, a single pass of your loop. Yours — send it to someone or don't."}
+                {job.msg || "One MP4, ten seconds, a single pass of your loop — it ends on the same warm send-off you just heard. Yours — send it to someone or don't."}
               </div>
 
               <p style={{ font: `400 12.5px/1.6 ${SANS}`, color: ASH, maxWidth: 480, margin: 0 }}>
